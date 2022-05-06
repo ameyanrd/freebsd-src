@@ -121,6 +121,15 @@ __FBSDID("$FreeBSD$");
 #include <netinet6/in6_rss.h>
 
 #include <netipsec/ipsec_support.h>
+#ifdef INET6_PDM
+#include <netinet6/ip6_pdm.h>
+#endif
+
+#ifdef IPSEC
+#include <netipsec/ipsec.h>
+#include <netinet6/ip6_ipsec.h>
+#include <netipsec/ipsec6.h>
+#endif /* IPSEC */
 
 #include <netinet6/ip6protosw.h>
 
@@ -245,7 +254,10 @@ ip6_init(void)
 	addrsel_policy_init();
 	nd6_init();
 	frag6_init();
-
+#ifdef INET6_PDM
+	ip6_pdm_init();
+#endif
+	
 	V_ip6_desync_factor = arc4random() % MAX_TEMP_DESYNC_FACTOR;
 
 	/* Skip global initialization stuff for non-default instances. */
@@ -392,6 +404,9 @@ ip6_destroy(void *unused __unused)
 	IFNET_RUNLOCK();
 
 	frag6_destroy();
+#ifdef INET6_PDM
+	ip6_pdm_destroy();
+#endif
 	nd6_destroy();
 	in6_ifattach_destroy();
 
@@ -512,14 +527,17 @@ ip6_direct_input(struct mbuf *m)
 			in6_ifstat_inc(m->m_pkthdr.rcvif, ifs6_in_truncated);
 			goto bad;
 		}
+#ifdef INET6_PDM
+		ip6_pdm_input(m, nxt, off);
+#endif
 
 #if defined(IPSEC) || defined(IPSEC_SUPPORT)
 		if (IPSEC_ENABLED(ipv6)) {
 			if (IPSEC_INPUT(ipv6, m, off, nxt) != 0)
 				return;
 		}
-#endif /* IPSEC */
 
+#endif /* IPSEC */
 		nxt = (*inet6sw[ip6_protox[nxt]].pr_input)(&m, &off, nxt);
 	}
 	return;
@@ -921,14 +939,17 @@ passin:
 			in6_ifstat_inc(rcvif, ifs6_in_truncated);
 			goto bad;
 		}
+#ifdef INET6_PDM
+		ip6_pdm_input(m, nxt, off);
+#endif
 
 #if defined(IPSEC) || defined(IPSEC_SUPPORT)
 		if (IPSEC_ENABLED(ipv6)) {
 			if (IPSEC_INPUT(ipv6, m, off, nxt) != 0)
 				return;
 		}
-#endif /* IPSEC */
 
+#endif /* IPSEC */
 		nxt = (*inet6sw[ip6_protox[nxt]].pr_input)(&m, &off, nxt);
 	}
 	return;

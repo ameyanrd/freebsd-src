@@ -458,7 +458,8 @@ frag6_input(struct mbuf **mp, int *offp, int proto)
 		m->m_pkthdr.len -= sizeof(struct ip6_frag);
 		in6_ifstat_inc(dstifp, ifs6_reass_ok);
 		*mp = m;
-		return (nxt);
+		*offp = offset;
+		return (ip6f->ip6f_nxt);
 	}
 
 	/* Offset now points to data portion. */

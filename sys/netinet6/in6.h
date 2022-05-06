@@ -394,6 +394,7 @@ struct route_in6 {
 #ifdef _KERNEL
 #define MTAG_ABI_IPV6		1444287380	/* IPv6 ABI */
 #define IPV6_TAG_DIRECT		0		/* direct-dispatch IPv6 */
+#define IPV6_TAG_PDM		1		/* IPv6 PDM metadata */
 #endif /* _KERNEL */
 
 /*

@@ -58,6 +58,10 @@ __FBSDID("$FreeBSD$");
 #include <netinet6/ip6_var.h>
 #include <netinet/icmp6.h>
 
+#ifdef INET6_PDM
+#include <netinet6/ip6_pdm.h>
+#endif
+
 /*
  * Destination options header processing.
  */
@@ -112,6 +116,12 @@ dest6_input(struct mbuf **mp, int *offp, int proto)
 		case IP6OPT_PADN:
 			optlen = *(opt + 1) + 2;
 			break;
+#ifdef INET6_PDM
+		case IP6OPT_PDM:
+			optlen = *(opt + 1) + 2;
+			ip6_pdm_add_tag(m, (struct ip6_opt_pdm *)opt);
+			break;
+#endif
 		default:		/* unknown option */
 			optlen = ip6_unknown_opt(opt, m,
 			    opt - mtod(m, u_int8_t *));
@@ -124,6 +134,7 @@ dest6_input(struct mbuf **mp, int *offp, int proto)
 		}
 	}
 
+	*mp = m;
 	*offp = off;
 	*mp = m;
 	return (dstopts->ip6d_nxt);

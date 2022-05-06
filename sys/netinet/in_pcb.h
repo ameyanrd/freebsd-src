@@ -762,6 +762,8 @@ int	inp_so_options(const struct inpcb *inp);
 #define INP_SUPPORTS_MBUFQ	0x00004000 /* Supports the mbuf queue method of LRO */
 #define INP_MBUF_QUEUE_READY	0x00008000 /* The transport is pacing, inputs can be queued */
 #define INP_DONT_SACK_QUEUE	0x00010000 /* If a sack arrives do not wake me */
+#define	IN6P_NOPDM		0x00000400 /* do not add PDM extension header */
+
 /*
  * Flags passed to in_pcblookup*() functions.
  */

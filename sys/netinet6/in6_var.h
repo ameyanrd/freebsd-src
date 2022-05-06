@@ -72,6 +72,7 @@
 #ifdef _KERNEL
 #include <sys/fnv_hash.h>
 #include <sys/libkern.h>
+#include <sys/sysctl.h>
 #endif
 
 /*
@@ -853,6 +854,8 @@ in6m_rele_locked(struct in6_multi_head *inmh, struct in6_multi *inm)
 struct ip6_moptions;
 struct sockopt;
 struct inpcbinfo;
+
+SYSCTL_DECL(_net_inet6_ip6);
 
 /* Multicast KPIs. */
 int	im6o_mc_filter(const struct ip6_moptions *, const struct ifnet *,

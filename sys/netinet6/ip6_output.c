@@ -111,6 +111,16 @@ __FBSDID("$FreeBSD$");
 #include <netinet6/in6_rss.h>
 
 #include <netipsec/ipsec_support.h>
+#ifdef INET6_PDM
+#include <netinet6/ip6_pdm.h>
+#endif
+
+#ifdef IPSEC
+#include <netipsec/ipsec.h>
+#include <netipsec/ipsec6.h>
+#include <netipsec/key.h>
+#include <netinet6/ip6_ipsec.h>
+#endif /* IPSEC */
 #if defined(SCTP) || defined(SCTP_SUPPORT)
 #include <netinet/sctp.h>
 #include <netinet/sctp_crc32.h>
@@ -127,6 +137,7 @@ struct ip6_exthdrs {
 	struct mbuf *ip6e_dest1;
 	struct mbuf *ip6e_rthdr;
 	struct mbuf *ip6e_dest2;
+	struct mbuf *ip6e_ulp;
 };
 
 static MALLOC_DEFINE(M_IP6OPT, "ip6opt", "IPv6 options");
@@ -442,6 +453,14 @@ ip6_output(struct mbuf *m0, struct ip6_pktopts *opt,
 		}
 		/* Routing header. */
 		MAKE_EXTHDR(opt->ip6po_rthdr, &exthdrs.ip6e_rthdr, optlen);
+		/* Destination options header(2nd part) */
+		MAKE_EXTHDR(opt->ip6po_dest2, &exthdrs.ip6e_dest2);
+	}
+#ifdef INET6_PDM
+	if (ip6_pdm_output(m, &exthdrs.ip6e_dest2,
+		inp ? (inp->inp_flags2 & IN6P_NOPDM) : 0) != 0)
+		goto freehdrs;
+#endif
 
 		unfragpartlen += optlen;
 
@@ -948,6 +967,21 @@ passout:
 	 * XXX-BZ  Need a framework to know when the NIC can handle it, even
 	 * with ext. hdrs.
 	 */
+	if (sw_csum & CSUM_DELAY_DATA_IPV6) {
+		sw_csum &= ~CSUM_DELAY_DATA_IPV6;
+		if (exthdrs.ip6e_ulp)
+			in6_delayed_cksum(exthdrs.ip6e_ulp, plen - optlen, 0);
+		else
+			in6_delayed_cksum(m, plen, sizeof(struct ip6_hdr));
+	}
+#ifdef SCTP
+	if (sw_csum & CSUM_SCTP_IPV6) {
+		sw_csum &= ~CSUM_SCTP_IPV6;
+		sctp_delayed_cksum(m, sizeof(struct ip6_hdr));
+	}
+#endif
+	m->m_pkthdr.csum_flags &= ifp->if_hwassist;
+	
 	error = ip6_output_delayed_csum(m, ifp, sw_csum, plen, optlen, false);
 	if (error != 0)
 		goto bad;
@@ -3156,6 +3190,7 @@ ip6_splithdr(struct mbuf *m, struct ip6_exthdrs *exthdrs)
 		bcopy((caddr_t)ip6, mtod(m, caddr_t), sizeof(*ip6));
 	}
 	exthdrs->ip6e_ip6 = m;
+	exthdrs->ip6e_ulp = m->m_next;
 	return 0;
 }
 
@@ -3168,9 +3203,8 @@ ip6_optlen(struct inpcb *inp)
 	int len;
 
 	if (!inp->in6p_outputopts)
-		return 0;
+		goto pdm;
 
-	len = 0;
 #define elen(x) \
     (((struct ip6_ext *)(x)) ? (((struct ip6_ext *)(x))->ip6e_len + 1) << 3 : 0)
 
@@ -3180,6 +3214,32 @@ ip6_optlen(struct inpcb *inp)
 		len += elen(inp->in6p_outputopts->ip6po_dest1);
 	len += elen(inp->in6p_outputopts->ip6po_rthdr);
 	len += elen(inp->in6p_outputopts->ip6po_dest2);
+pdm:
+#ifdef INET6_PDM
+	/*
+	 * If we haven't accounted for the length of the PDM option in the
+	 * value returned to the caller, remember that we told the ULP there
+	 * would be no PDM option so that PDM option insertion can be forced
+	 * off in ip6_output() to properly handle the case where the filters
+	 * are modified between this call and the call to ip6_output().
+	 */
+	if (!ip6_pdm_filter_conninfo(proto, &inp->inp_inc))
+		inp->inp_flags2 |= IN6P_NOPDM;
+	else {
+		struct ip6_dest *dest2;
+
+		dest2 = inp->in6p_outputopts ?
+		    inp->in6p_outputopts->ip6po_dest2 : NULL;
+		inp->inp_flags2 &= ~IN6P_NOPDM;
+		len += ip6_pdm_size(dest2, NULL, NULL, NULL);
+		/*
+		 * If there is no other destination option, also add the
+		 * length of the destination option extension header.
+		 */
+		if (dest2 == NULL)
+			len += sizeof(struct ip6_dest);
+	}
+#endif
 	return len;
 #undef elen
 }

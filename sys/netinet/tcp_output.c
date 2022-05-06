@@ -855,6 +855,20 @@ send:
 			len = 0;
 	}
 
+#ifdef INET6
+	if (isipv6)
+		ipoptlen = ip6_optlen(tp->t_inpcb);
+	else
+#endif
+	if (tp->t_inpcb->inp_options)
+		ipoptlen = tp->t_inpcb->inp_options->m_len -
+				offsetof(struct ipoption, ipopt_list);
+	else
+		ipoptlen = 0;
+#ifdef IPSEC
+	ipoptlen += ipsec_optlen;
+#endif
+
 	/*
 	 * Adjust data length if insertion of options will
 	 * bump the packet length beyond the t_maxseg length.

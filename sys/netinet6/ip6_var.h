@@ -379,7 +379,7 @@ int	ip6_setpktopts(struct mbuf *, struct ip6_pktopts *,
 	struct ip6_pktopts *, struct ucred *, int);
 void	ip6_clearpktopts(struct ip6_pktopts *, int);
 struct ip6_pktopts *ip6_copypktopts(struct ip6_pktopts *, int);
-int	ip6_optlen(struct inpcb *);
+int	ip6_optlen(unsigned int, struct inpcb *);
 int	ip6_deletefraghdr(struct mbuf *, int, int);
 int	ip6_fragment(struct ifnet *, struct mbuf *, int, u_char, int,
 			uint32_t);
